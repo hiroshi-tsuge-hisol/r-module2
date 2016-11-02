@@ -1,0 +1,232 @@
+/**
+ * Created by: 21683204
+ * Creation date: 2015/03/04
+ *
+ * DXL Editor is provided by SODIUS (www.sodius.com)
+ */
+pragma encoding, "UTF-8"
+
+void func(Module srcMod , Module toMod , string viewName)
+{
+		Column srcCol
+		Column destCol
+		bool err
+ 		Filter vFilt
+ 		Sort vSort
+        string errMsg
+		ViewDef vDef       
+
+        err = false
+        vFilt = null
+        vSort = null
+ 
+        // ビューをロードする
+        if (load(srcMod , view(viewName))) {
+
+			// 設定を拾っておく        	
+            vDef = get(view(viewName))
+
+			// コピー先をカレントにする
+            current = toMod
+            int colCount = 0
+ 
+ 			// コピー元のカラムを回す（さっきロードしたビューの）
+            for srcCol in srcMod do {
+            	
+            	// カラムを指定する
+                destCol = column colCount++
+                
+                // 属性名を得る
+                string attName = attrName(srcCol)
+                
+                // くくりつく属性がない場合
+                if (null(attName)) {
+                    if (main(srcCol)) {
+                    	// メイン列のコピー
+                        main(destCol)
+                    } else {
+                    	// レイアウトDXLのコピー
+                        dxl(destCol, dxl(srcCol))
+                    }
+                } else {
+                	// コピー先で対応する属性を探す
+                    AttrDef ad = find(toMod, attName)
+                    // 対応する属性がなく、かつ、コピーできない属性以外？
+                    if (null(ad) and attName != "Object Identifier" and
+                            attName != "Object Number" and attName != "Object Level") {
+                    	// 対応する属性がないぜ、のメッセージ
+                        warningBox("Unable to copy '" viewName "' view, due to lack of '" attName "' attribute.")
+                        err = true
+                        break
+                    } else {
+                    	// 当該のカラムに設定する属性を指定する。
+                        attribute(destCol, attName)
+                    }
+                }
+                // カラムタイトルを得る
+                string colTitle = title(srcCol)
+                if (! main(srcCol)) {
+                	// メイン列以外にはカラムタイトルを入れる
+                    title(destCol, colTitle)
+                }
+                // カラム幅をコピーする
+                int colWidth = width(srcCol)
+                width(destCol, colWidth)
+                // 自動調整させる
+                justify(destCol, justify(srcCol))
+            }
+            if (err) {
+
+            }
+            current = srcMod
+            if (filtering(srcMod)) {
+                vFilt = current
+            }
+            if (sorting(srcMod)) {
+                vSort = current
+            }
+            vLevel = level(srcMod)
+            vOutline = outlining(srcMod)
+            current = toMod
+            noError
+            if (! null vFilt) {
+                set(toMod, vFilt)
+                filtering(on)
+            }
+            errMsg = lastError
+            if (! null(errMsg)) {
+                warningBox("Unable to copy view '" viewName ",' due to " errMsg)
+            }
+            noError
+            if (! null vSort) {
+                set(toMod, vSort)
+                sorting(on)
+            }
+            errMsg = lastError
+            if (! null(errMsg)) {
+                warningBox("Unable to copy view '" viewName ",' due to " errMsg)
+            }
+            level(vLevel)
+            outlining(vOutline)
+            save(toMod, view(viewName), vDef)
+        } else {
+            infoBox("Unable to load view '" viewName "' at the source")
+        }
+}
+
+
+// 属性を旧⇒新に変更する、その際にviewも変更する
+void changeAttr( string oldAttr, string newAttr , Module sMod ) {
+	string vN
+	Column sCol
+    int colCount = 0
+	ViewDef vDef
+
+	// モジュールを回してビューを確認する。
+	for vN in views( sMod ) do
+	{
+		if (load(sMod , view(vN))) {
+            for sCol in sMod do {
+            	// カラムの中の属性名をチェック
+            	string attName = attrName(sCol)
+            	// 変更予定の属性名と一致する場合
+            	if ( attName == oldAttr ) {
+            		// 数を記録していく
+            		colCount ++
+            	}
+            }		
+		}
+		else {
+			// ビューが読み込めないエラー
+		}
+	}
+	// ビュー中に変更予定の属性が含まれた数がわかる
+	
+	string vName[colCount]  // ビューの名前
+	int vCol[colCount] // ビュー中でのカラム位置
+	int wid[colCount]  // カラム幅
+	
+	colCount = 0
+	
+	// ビューの中の変更要の位置を記録する
+	for vN in views( sMod ) do
+	{
+		if (load(sMod , view(vN))) {
+			int colw = 0
+            for sCol in sMod do {
+            	// カラムの中の属性名をチェック
+            	string attName = attrName(sCol)
+            	// 変更予定の属性名と一致する場合
+            	if ( attName == oldAttr ) {
+            		// ビュー名と、位置を記録していく
+print "log:" vN ":" colw ":" colCount "\n"
+            		vName[colCount] = vN
+            		vCol[colCount] = colw
+            		wid[colCount] = width(sCol)
+            		colCount ++
+            	}
+            	colw++
+            }		
+		}
+		else {
+			// ビューが読み込めないエラー
+		}
+	}
+	// 変更対象のビューと、カラムが判明する。
+	
+	// 属性の変更処理
+	current = sMod
+	AttrDef ad = find( sMod , oldAttr )
+	modify( ad , setName , newAttr )
+	
+	// ビューの変更処理
+	// 古い属性は、ビューの中からは見えなくなっているので
+	int loop = 0
+	int loop2
+	Column cCol
+	while( loop < colCount ) {
+print loop "\n"
+		if ( load( sMod , view(vName[loop]))) {
+			// 設定を拾っておく        	
+            vDef = get(view(vName[loop]))
+            
+			loop2 = 0
+			for sCol in sMod do
+			{
+print loop2 "\n"
+				if ( vCol[loop] == loop2 ) {
+					// カラム追加
+print  "insert\n"
+					Column cCol = insert( sCol )
+					attribute( cCol , newAttr )
+					width( cCol , wid[loop2] )
+					save( sMod , view( vName[loop] ) , vDef )
+					break
+				}
+				loop2++
+			}
+				if ( vCol[loop] == loop2 ) {
+					// カラム追加
+print  "insert\n"
+					Column cCol = column loop2
+					attribute( cCol , newAttr )
+					width( cCol , wid[loop2] )
+					save( sMod , view(vName[loop]) , vDef )
+
+				}
+		
+			
+		}
+		else {
+		}
+		
+		++loop
+	}
+}
+
+
+// 特定属性いりのビューを作っておく
+
+// 特定属性の名前を変更する
+Module m = current
+

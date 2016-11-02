@@ -1,0 +1,38 @@
+﻿//Modification of Font
+/*
+オブジェクトのフォントを変更する
+但しOLEオブジェクトは対象外
+*/
+
+pragma runLim, 0 
+
+Module m = current 
+Object o 
+RichTextParagraph rp
+RichText rt
+string s,t
+bool flg1 = null
+bool flg2 = null
+
+for o in m do {
+   s = o."Object Heading"
+   o."Object Heading" = s
+   s = richTextWithOle o."Object text"
+   //print number (o)  "\n"
+   flg2 = false
+   for rp in s do {
+      for rt in rp do {
+         //print "isOle:" rt.isOle ":  " "\n"
+         flg1 = rt.isOle
+         if (flg1 == true) { 
+            flg2 = true
+            break
+         }
+      }
+   }
+   if (flg2 == false) {                      //OLEオブジェクトでない
+      t = o."Object text"     
+      o."Object text" = t
+   }
+}
+infoBox ("フォント変更処理が終了しました！")
